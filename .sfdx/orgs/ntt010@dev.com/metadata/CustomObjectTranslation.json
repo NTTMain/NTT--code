@@ -1,0 +1,18 @@
+{
+  "status": 0,
+  "result": [
+    {
+      "createdById": "005g5000000bkbmAAA",
+      "createdByName": "NTT Dev",
+      "createdDate": "1970-01-01T00:00:00.000Z",
+      "fileName": "objectTranslations/Employee__c-en_US.objectTranslation",
+      "fullName": "Employee__c-en_US",
+      "id": "",
+      "lastModifiedById": "005g5000000bkbmAAA",
+      "lastModifiedByName": "NTT Dev",
+      "lastModifiedDate": "1970-01-01T00:00:00.000Z",
+      "namespacePrefix": "",
+      "type": "CustomObjectTranslation"
+    }
+  ]
+}
