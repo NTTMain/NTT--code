@@ -56,9 +56,9 @@ jobs:
             TO="HEAD"
             fi
 
-    echo "Delta from $FROM to $TO"
+                echo "Delta from $FROM to $TO"
 
-    sfdx-git-delta \
+            sfdx-git-delta \
       --from "$FROM" \
       --to "$TO" \
       --output delta \
