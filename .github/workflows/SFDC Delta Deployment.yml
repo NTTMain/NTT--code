@@ -44,28 +44,29 @@ jobs:
           echo "Ref: $GITHUB_REF"
           echo "Base ref: $GITHUB_BASE_REF"
 
-      # 4️⃣ Generate delta
       - name: Generate Delta
         run: |
-          mkdir -p delta
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            mkdir -p delta
+
+            if [ "${{ github.event_name }}" = "pull_request" ]; then
             FROM="origin/${GITHUB_BASE_REF}"
             TO="HEAD"
-          else
+              else
             FROM="HEAD~1"
             TO="HEAD"
-          fi
+            fi
 
-          echo "Delta from $FROM to $TO"
+    echo "Delta from $FROM to $TO"
 
-          sfdx sgd:source:delta \
-            --from "$FROM" \
-            --to "$TO" \
-            --output delta \
-            --generate-delta
+    sfdx-git-delta \
+      --from "$FROM" \
+      --to "$TO" \
+      --output delta \
+      --source force-app
 
-          echo "Delta contents:"
-          ls -R delta
+    echo "Delta contents:"
+    ls -R delta
+
 
       # 5️⃣ Authenticate to Dev Org
       - name: Authenticate Dev Org
