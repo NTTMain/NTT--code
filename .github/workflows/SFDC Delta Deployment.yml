@@ -75,4 +75,40 @@ jobs:
           sf org login sfdx-url -f devAuth.txt -a DevOrg -s
 
       # 6️⃣ Authenticate to QA Org
-      - name: Authenticat
+      - name: Authenticate QA Org
+        if: github.ref == 'refs/heads/QA' || github.base_ref == 'QA'
+        run: |
+          echo "${{ secrets.QA_SFDX_URL }}" > qaAuth.txt
+          sf org login sfdx-url -f qaAuth.txt -a QaOrg -s
+
+      # 7️⃣ Validate on Pull Request
+      - name: Validate Deployment (PR)
+        if: github.event_name == 'pull_request'
+        run: |
+          if [ "${RUN_TESTS}" = "true" ]; then
+            sf project deploy validate \
+              --source-dir delta/force-app \
+              -l RunLocalTests \
+              -w 60
+          else
+            sf project deploy validate \
+              --source-dir delta/force-app \
+              -l NoTestRun \
+              -w 60
+          fi
+
+      # 8️⃣ Deploy on Push
+      - name: Deploy to Salesforce
+        if: github.event_name == 'push'
+        run: |
+          if [ "${RUN_TESTS}" = "true" ]; then
+            sf project deploy start \
+              --source-dir delta/force-app \
+              -l RunLocalTests \
+              -w 60
+          else
+            sf project deploy start \
+              --source-dir delta/force-app \
+              -l NoTestRun \
+              -w 60
+          fi
