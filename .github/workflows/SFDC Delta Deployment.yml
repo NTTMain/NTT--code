@@ -1,4 +1,4 @@
-name: Salesforce CI/CD with Docker CLI
+name: Salesforce CI/CD with Delta Deployment
 
 on:
   push:
@@ -20,88 +20,59 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     container:
       image: salesforce/cli:latest-full
 
     env:
-      TEST_FLAG: ${{ github.event.inputs.run_tests || 'true' }}
+      RUN_TESTS: ${{ github.event.inputs.run_tests || 'true' }}
 
     steps:
-      # STEP 1 → Checkout code
+      # 1️⃣ Checkout full git history (required for delta)
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      # STEP 2 → Install Node.js (needed for sfdx-git-delta / sgd)
-      - name: Install Node.js
-        run: |
-          curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-          sudo apt-get install -y nodejs
-          node -v
-          npm -v
-
-      # STEP 3 → Install sfdx-git-delta
+      # 2️⃣ Install sfdx-git-delta
       - name: Install sfdx-git-delta
         run: npm install -g sfdx-git-delta
 
-      # STEP 4 → Install SGD CLI (if needed)
-      - name: Install SGD CLI
+      # 3️⃣ Show branch info
+      - name: Print branch info
         run: |
-          npm install -g sgd || echo "sgd already installed"
-          sgd --version || true
+          echo "Ref: $GITHUB_REF"
+          echo "Base ref: $GITHUB_BASE_REF"
 
-      # STEP 5 → Print current branch
-      - name: Print Branch
-        run: echo "Branch is ${GITHUB_REF}"
-
-      # STEP 6 → Generate delta (changed metadata only)
+      # 4️⃣ Generate delta
       - name: Generate Delta
         run: |
-          echo "Generating delta..."
           mkdir -p delta
-          # Use sfdx-git-delta or sgd depending on your preference
-          # Example using sgd:
-          sgd --to HEAD --from HEAD~1 --output delta || echo "Delta generation skipped (already applied)"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            FROM="origin/${GITHUB_BASE_REF}"
+            TO="HEAD"
+          else
+            FROM="HEAD~1"
+            TO="HEAD"
+          fi
 
-      # STEP 7 → Authenticate to Dev Org
-      - name: Authenticate to Dev Org
+          echo "Delta from $FROM to $TO"
+
+          sfdx sgd:source:delta \
+            --from "$FROM" \
+            --to "$TO" \
+            --output delta \
+            --generate-delta
+
+          echo "Delta contents:"
+          ls -R delta
+
+      # 5️⃣ Authenticate to Dev Org
+      - name: Authenticate Dev Org
         if: github.ref == 'refs/heads/Dev' || github.base_ref == 'Dev'
         run: |
           echo "${{ secrets.DEV_SFDX_URL }}" > devAuth.txt
           sf org login sfdx-url -f devAuth.txt -a DevOrg -s
 
-      # STEP 8 → Authenticate to QA Org
-      - name: Authenticate to QA Org
-        if: github.ref == 'refs/heads/QA' || github.base_ref == 'QA'
-        run: |
-          echo "${{ secrets.QA_SFDX_URL }}" > qaAuth.txt
-          sf org login sfdx-url -f qaAuth.txt -a QaOrg -s
-
-      # STEP 9 → Determine delta changes (alternative using sfdx-git-delta)
-      - name: Determine Delta Changes
-        run: |
-          echo "Determining changed metadata..."
-          npx sfdx-git-delta -t metadata --from HEAD^ --to HEAD --output delta
-
-      # STEP 10 → Validation before merge (pull_request)
-      - name: Validate Deployment (checkonly)
-        if: github.event_name == 'pull_request'
-        run: |
-          echo "Running validation deployment (checkonly)..."
-          if [ "${TEST_FLAG}" = "true" ]; then
-            sf project deploy validate -l RunLocalTests -w 60 --source-dir delta
-          else
-            sf project deploy validate -l NoTestRun -w 60 --source-dir delta
-          fi
-
-      # STEP 11 → Actual deployment (push to Dev or QA)
-      - name: Deploy to Salesforce
-        if: github.event_name == 'push'
-        run: |
-          echo "Starting actual deployment..."
-          if [ "${TEST_FLAG}" = "true" ]; then
-            echo "Running tests during deploy..."
-            sf project deploy start -l RunLocalTests -w 60 --source-dir delta
-          else
-            echo "Deploying without tests..."
-            sf project deploy start -l NoTestRun -w 60 --source-dir delta
-          fi
+      # 6️⃣ Authenticate to QA Org
+      - name: Authenticat
