@@ -28,14 +28,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # REQUIRED for git delta
+          fetch-depth: 0
 
-      # STEP 2 → Install Node.js (no sudo inside container)
+      # STEP 2 → Install Node.js (no sudo)
       - name: Install Node.js
         run: |
-          curl -fsSL https://nodejs.org/dist/v20.11.1/node-v20.11.1-linux-x64.tar.xz \
-          | tar -xJ
-          export PATH=$PWD/node-v20.11.1-linux-x64/bin:$PATH
+          curl -fsSL https://nodejs.org/dist/v20.11.1/node-v20.11.1-linux-x64.tar.xz | tar -xJ
+          echo "$PWD/node-v20.11.1-linux-x64/bin" >> $GITHUB_PATH
           node -v
           npm -v
 
@@ -43,52 +42,47 @@ jobs:
       - name: Install sfdx-git-delta
         run: npm install -g sfdx-git-delta
 
-      # STEP 4 → Authenticate to Dev Org
+      # STEP 4 → Authenticate Dev Org
       - name: Authenticate Dev Org
         if: github.ref == 'refs/heads/Dev' || github.base_ref == 'Dev'
         run: |
           echo "${{ secrets.DEV_SFDX_URL }}" > auth.txt
           sf org login sfdx-url -f auth.txt -a DevOrg -s
 
-      # STEP 5 → Authenticate to QA Org
+      # STEP 5 → Authenticate QA Org
       - name: Authenticate QA Org
         if: github.ref == 'refs/heads/QA' || github.base_ref == 'QA'
         run: |
           echo "${{ secrets.QA_SFDX_URL }}" > auth.txt
           sf org login sfdx-url -f auth.txt -a QaOrg -s
 
-      # STEP 6 → Generate Delta
+      # STEP 6 → Generate Delta (FIXED)
       - name: Generate Delta
         run: |
-          mkdir delta
+          mkdir -p delta
+
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             echo "Delta for PR..."
-            sfdx-git-delta \
+            npx sfdx-git-delta \
               --from origin/${{ github.base_ref }} \
               --to HEAD \
               --output delta
           else
             echo "Delta for push..."
-            sfdx-git-delta \
+            npx sfdx-git-delta \
               --from HEAD~1 \
               --to HEAD \
               --output delta
           fi
 
-      # STEP 7 → Validate Deployment (PR only)
+      # STEP 7 → Validate (PR only)
       - name: Validate Deployment
         if: github.event_name == 'pull_request'
         run: |
           if [ "$RUN_TESTS" = "true" ]; then
-            sf project deploy validate \
-              --source-dir delta \
-              -l RunLocalTests \
-              -w 60
+            sf project deploy validate --source-dir delta -l RunLocalTests -w 60
           else
-            sf project deploy validate \
-              --source-dir delta \
-              -l NoTestRun \
-              -w 60
+            sf project deploy validate --source-dir delta -l NoTestRun -w 60
           fi
 
       # STEP 8 → Deploy (push only)
@@ -96,13 +90,7 @@ jobs:
         if: github.event_name == 'push'
         run: |
           if [ "$RUN_TESTS" = "true" ]; then
-            sf project deploy start \
-              --source-dir delta \
-              -l RunLocalTests \
-              -w 60
+            sf project deploy start --source-dir delta -l RunLocalTests -w 60
           else
-            sf project deploy start \
-              --source-dir delta \
-              -l NoTestRun \
-              -w 60
+            sf project deploy start --source-dir delta -l NoTestRun -w 60
           fi
